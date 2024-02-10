@@ -11,7 +11,7 @@ import {
   BrowserMessageWriter,
   createConnection,
 } from "vscode-languageserver/browser";
-import { Logging, Lsp, Telemetry, Workspace } from "../features";
+import { Chat, Logging, Lsp, Telemetry, Workspace } from "../features";
 import { inlineCompletionRequestType } from "../features/lsp/inline-completions/futureProtocol";
 import { Auth } from "../features/auth/auth";
 
@@ -21,6 +21,7 @@ import {
   logInlineCompletionSessionResultsNotificationType,
 } from "../features/lsp/inline-completions/protocolExtensions";
 import { observe } from "../features/lsp";
+import { chatRequestType, endChatRequestType } from "../features/chat";
 import { InitializeHandler } from "./initialize";
 
 declare const self: WindowOrWorkerGlobalScope;
@@ -64,6 +65,13 @@ export const webworker = (props: RuntimeProps) => {
       readdir: (_path) => Promise.resolve([]),
       remove: (_dir) => Promise.resolve(),
     },
+  };
+
+  const chat: Chat = {
+    onChatPrompt: (handler) =>
+      lspConnection.onRequest(chatRequestType, handler),
+    onEndChatSession: (handler) =>
+      lspConnection.onRequest(endChatRequestType, handler),
   };
 
   // Map the LSP client to the LSP feature.
@@ -125,7 +133,7 @@ export const webworker = (props: RuntimeProps) => {
 
   // Initialize every Server
   const disposables = props.servers.map((s) =>
-    s({ credentialsProvider, lsp, workspace, telemetry, logging }),
+    s({ chat, credentialsProvider, lsp, workspace, telemetry, logging }),
   );
 
   // Free up any resources or threads used by Servers

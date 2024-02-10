@@ -13,7 +13,7 @@ import {
   shouldWaitForEncryptionKey,
   validateEncryptionDetails,
 } from "../features/auth/standalone/encryption";
-import { Logging, Lsp, Telemetry, Workspace } from "../features";
+import { Logging, Lsp, Telemetry, Workspace, Chat } from "../features";
 import { inlineCompletionRequestType } from "../features/lsp/inline-completions/futureProtocol";
 import { Auth, CredentialsProvider } from "../features/auth/auth";
 
@@ -30,6 +30,7 @@ import { access, mkdirSync, existsSync } from "fs";
 import { readdir, readFile, rm, stat, copyFile } from "fs/promises";
 import * as os from "os";
 import * as path from "path";
+import { chatRequestType, endChatRequestType } from "../features/chat";
 import { InitializeHandler } from "./initialize";
 
 /**
@@ -169,6 +170,13 @@ export const standalone = (props: RuntimeProps) => {
       },
     };
 
+    const chat: Chat = {
+      onChatPrompt: (handler) =>
+        lspConnection.onRequest(chatRequestType, handler),
+      onEndChatSession: (handler) =>
+        lspConnection.onRequest(endChatRequestType, handler),
+    };
+
     // Map the LSP client to the LSP feature.
     const lsp: Lsp = {
       addInitializer: initializeHandler.addHandler,
@@ -227,7 +235,7 @@ export const standalone = (props: RuntimeProps) => {
 
     // Initialize every Server
     const disposables = props.servers.map((s) =>
-      s({ credentialsProvider, lsp, workspace, telemetry, logging }),
+      s({ chat, credentialsProvider, lsp, workspace, telemetry, logging }),
     );
 
     // Free up any resources or threads used by Servers
