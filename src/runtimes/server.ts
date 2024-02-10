@@ -4,6 +4,7 @@ import {
   Telemetry,
   Workspace,
   CredentialsProvider,
+  Chat,
 } from "../features";
 
 /**
@@ -22,6 +23,7 @@ import {
  * @returns A function that will be called when the client exits, used to dispose of any held resources.
  */
 export type Server = (features: {
+  chat: Chat;
   credentialsProvider: CredentialsProvider;
   lsp: Lsp;
   workspace: Workspace;
