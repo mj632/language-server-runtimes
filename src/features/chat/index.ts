@@ -6,12 +6,11 @@ import {
   SourceLink,
 } from "./constants";
 
-export interface ChatRequestParams {
+export interface ChatParams {
   tabId: string;
   prompt: ChatPrompt;
-  conversationId?: string;
 }
-export interface ChatRequestResult {
+export interface ChatResult {
   body?: string;
   messageId?: string;
   canBeVoted?: boolean; // requires messageId to be filled to show vote thumbs
@@ -26,14 +25,14 @@ export interface ChatRequestResult {
   codeReference?: ReferenceTrackerInformation[];
 }
 export const chatRequestType = new ProtocolRequestType<
-  ChatRequestParams,
-  ChatRequestResult,
-  ChatRequestResult,
+  ChatParams,
+  ChatResult,
+  ChatResult,
   void,
   void
 >("aws/sendChatPrompt");
 
-export type EndChatSessionParams = { tabId: string; conversationId?: string };
+export type EndChatSessionParams = { tabId: string };
 export type EndChatSessionResult = boolean;
 export const endChatRequestType = new ProtocolRequestType<
   EndChatSessionParams,
@@ -43,20 +42,33 @@ export const endChatRequestType = new ProtocolRequestType<
   void
 >("aws/endChatSession");
 
+export interface QuickActionParams {
+  tabId: string;
+  quickAction: string;
+  prompt?: string;
+}
+export const quickActionRequestType = new ProtocolRequestType<
+  QuickActionParams,
+  ChatResult,
+  ChatResult,
+  void,
+  void
+>("aws/sendChatQuickAction");
+
 /**
  * The Chat feature interface. Provides access to chat features
  */
 export type Chat = {
   onChatPrompt: (
-    handler: RequestHandler<
-      ChatRequestParams,
-      ChatRequestResult | undefined | null,
-      void
-    >,
+    handler: RequestHandler<ChatParams, ChatResult | undefined | null, void>,
   ) => void; // send result as partials and then send complete message
   onEndChatSession: (
     handler: RequestHandler<EndChatSessionParams, EndChatSessionResult, void>,
   ) => void;
+  onQuickAction: (
+    handler: RequestHandler<QuickActionParams, ChatResult, void>,
+  ) => void;
+
   // TODO
   onShowMoreWebResultsClick?: any;
   onReady?: any;

@@ -1,6 +1,7 @@
 import {
   DidChangeConfigurationNotification,
   InitializeParams,
+  PublishDiagnosticsNotification,
   TextDocumentSyncKind,
   TextDocuments,
 } from "vscode-languageserver";
@@ -29,7 +30,12 @@ import { access, mkdirSync, existsSync } from "fs";
 import { readdir, readFile, rm, stat, copyFile } from "fs/promises";
 import * as os from "os";
 import * as path from "path";
-import { chatRequestType, endChatRequestType } from "../features/chat";
+import {
+  chatRequestType,
+  endChatRequestType,
+  quickActionRequestType,
+} from "../features/chat";
+import { InitializeHandler } from "./initialize";
 
 /**
  * The runtime for standalone LSP-based servers.
@@ -103,27 +109,9 @@ export const standalone = (props: RuntimeProps) => {
 
   function initializeRuntime() {
     const documents = new TextDocuments(TextDocument);
-    let clientInitializeParams: InitializeParams;
 
-    lspConnection.onInitialize((params: InitializeParams) => {
-      clientInitializeParams = params;
-      return {
-        serverInfo: {
-          // TODO: make this configurable
-          name: "AWS LSP Standalone",
-          // This indicates the standalone server version and is updated
-          // every time the standalone or any of the servers update.
-          // Major version updates only happen for backwards incompatible changes.
-          version: props.version,
-        },
-        capabilities: {
-          textDocumentSync: {
-            openClose: true,
-            change: TextDocumentSyncKind.Incremental,
-          },
-        },
-      };
-    });
+    let initializeHandler = new InitializeHandler(props.version, props.name);
+    lspConnection.onInitialize(initializeHandler.onInitialize);
 
     // Set up logging over LSP
     // TODO: set up Logging once implemented
@@ -146,7 +134,8 @@ export const standalone = (props: RuntimeProps) => {
         const fileUrl = new URL(uri);
         const normalizedFileUri = fileUrl.pathname || "";
 
-        const folders = clientInitializeParams.workspaceFolders;
+        const folders =
+          initializeHandler.clientInitializeParams!.workspaceFolders;
         if (!folders) return undefined;
 
         for (const folder of folders) {
@@ -190,14 +179,17 @@ export const standalone = (props: RuntimeProps) => {
         lspConnection.onRequest(chatRequestType, handler),
       onEndChatSession: (handler) =>
         lspConnection.onRequest(endChatRequestType, handler),
+      onQuickAction: (handler) =>
+        lspConnection.onRequest(quickActionRequestType, handler),
     };
 
     // Map the LSP client to the LSP feature.
     const lsp: Lsp = {
+      addInitializer: initializeHandler.addHandler,
       onInitialized: (handler) =>
         lspConnection.onInitialized((p) => {
           const workspaceCapabilities =
-            clientInitializeParams?.capabilities.workspace;
+            initializeHandler.clientInitializeParams?.capabilities.workspace;
           if (
             workspaceCapabilities?.didChangeConfiguration?.dynamicRegistration
           ) {
@@ -218,10 +210,17 @@ export const standalone = (props: RuntimeProps) => {
         documentsObserver.callbacks.onDidChangeTextDocument(handler),
       onDidCloseTextDocument: (handler) =>
         documentsObserver.callbacks.onDidCloseTextDocument(handler),
+      onExecuteCommand: (handler) => lspConnection.onExecuteCommand(handler),
       workspace: {
         getConfiguration: (section) =>
           lspConnection.workspace.getConfiguration(section),
       },
+      publishDiagnostics: (params) =>
+        lspConnection.sendNotification(
+          PublishDiagnosticsNotification.method,
+          params,
+        ),
+      onHover: (handler) => lspConnection.onHover(handler),
       extensions: {
         onInlineCompletionWithReferences: (handler) =>
           lspConnection.onRequest(
